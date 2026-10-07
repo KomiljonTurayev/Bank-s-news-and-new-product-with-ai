@@ -1,7 +1,22 @@
 # Bank's News — Frontend
 
-React 18 + Vite + TypeScript (Feature-Sliced Design). Shu repo'dagi
-`backend/` REST API ustida ishlaydi.
+Bank mahsulotlari agregatorining veb-interfeysi: bozordagi takliflarni
+solishtirish, valyuta dinamikasi, mahsulot pasporti va AI mahsulot strategi.
+Shu repo'dagi `backend/` REST API ustida ishlaydi.
+
+**Stek:** React 19, TypeScript 5.8, Vite 7, Mantine 8, TanStack Query 5,
+Redux Toolkit, React Router 7, Vitest + Testing Library.
+
+## Sahifalar
+
+| Yo'l | Sahifa |
+|---|---|
+| `/` | Bosh sahifa — bozor takliflari va filtrlar |
+| `/mpl` | MPL — valyuta kursi tahlili (davr bo'yicha min/o'rtacha/max, CBU arxivi) |
+| `/products` | Saqlangan mahsulot g'oyalari |
+| `/products/new` | Yangi mahsulot pasporti (+ AI strategi paneli) |
+| `/products/:id` | Mahsulot tahlili — bozor analoglari bilan solishtirish |
+| `/products/:id/edit` | Mahsulotni tahrirlash |
 
 ## Bitta origin printsipi
 
@@ -29,7 +44,16 @@ npm run preview    # buildni lokal ko'rish
 
 Docker (nginx): `docker build -t bank-news-front .` va
 `docker run -p 8080:80 -e API_UPSTREAM=http://backend:8000 bank-news-front`.
-Railway'ga joylash — repo ildizidagi `DEPLOY.md`.
+
+Konteyner o'zgaruvchilari:
+
+| O'zgaruvchi | Ma'nosi | Standart |
+|---|---|---|
+| `API_UPSTREAM` | `/api/*` proksilanadigan backend manzili | `http://backend:8000` |
+| `PORT` | nginx tinglaydigan port (Railway beradi) | `80` |
+| `VITE_API_BASE_URL` | *build-arg*; bo'sh = nisbiy `/api` (tavsiya) | bo'sh |
+
+Railway'ga joylash — repo ildizidagi [`DEPLOY.md`](../DEPLOY.md).
 
 ## Loyiha tuzilishi (Feature-Sliced Design)
 

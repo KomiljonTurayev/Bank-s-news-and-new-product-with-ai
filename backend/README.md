@@ -17,7 +17,7 @@ SQLAlchemy orqali kod o'zgarmaydi).
 
 - **Kunlik jadval bo'yicha yig'ish** — `APScheduler` soatlari
   `SCRAPE_TIMES`da (standart `09:00,14:00`, Asia/Tashkent) kuniga aynan
-  2 marta ishga tushadi; jadval bo'sh qoldirilsa `FETCH_INTERVAL_MINUTES`
+  2 marta ishga tushadi (faqat `SCRAPE_ACTIVE_WINDOW`, standart `07:00-21:00` ichida); jadval bo'sh qoldirilsa `FETCH_INTERVAL_MINUTES`
   oralig'li interval rejimiga qaytadi.
 - **Ko'p mahsulot turi** — omonatlar, kreditlar (iste'mol, ipoteka,
   avto, ta'lim, overdraft), kredit/debet kartalar, obligatsiyalar,
@@ -62,6 +62,14 @@ docker compose up -d postgres   # mahalliy PostgreSQL konteynerini ko'taradi
 | `FETCH_INTERVAL_MINUTES` | Interval rejimi qadami — faqat `SCRAPE_TIMES` bo'sh bo'lganda tikish oralig'i | `60` |
 | `SCRAPE_TIMES` | Kunlik skreyping soatlari, vergul bilan `HH:MM` (Asia/Tashkent); bo'sh satr = interval rejimi | `09:00,14:00` |
 | `FRONTEND_ORIGINS` | CORS uchun ruxsat etilgan frontend origin'lari (vergul bilan) | `http://localhost:5500,http://127.0.0.1:5500` |
+| `PROFILE` | `dev` (SQLite standart, DEBUG log) yoki `prod` | — (majburiy) |
+| `SCRAPE_ACTIVE_WINDOW` | Skreyping ruxsat etilgan mahalliy oraliq | `07:00-21:00` |
+| `MIN_HOST_INTERVAL_SECONDS` | Bitta hostga so'rovlar orasidagi tanaffus | `2.0` |
+| `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` | AI tavsiyasi uchun Claude API kaliti | bo'sh (endpoint 503) |
+| `AI_MODEL` / `AI_EFFORT` | Claude modeli va fikrlash darajasi | `claude-opus-5-5` / `high` |
+| `HOST` / `PORT` | Tinglash manzili (Railway: `::` / `8000`) | `0.0.0.0` / `8000` |
+| `FORWARDED_ALLOW_IPS` | X-Forwarded-For'ga ishoniladigan proksilar | loopback + RFC1918 |
+| `SENTRY_DSN` | Xatolarni kuzatish | bo'sh |
 
 Diqqat: `docker-compose.yml` Postgres'ni host'da **5433**-portga
 chiqaradi (5432 emas) — ba'zi mashinalarda 5432 allaqachon boshqa
@@ -129,31 +137,56 @@ tekshiruvi: `GET /actuator/health` → `{"status": "alive"}`.
 pytest
 ```
 
+## API
+
+To'liq interaktiv hujjat: `http://localhost:8000/docs` (Swagger).
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | `/api/meta` | Banklar, mahsulot turlari, segmentlar ro'yxati |
+| GET | `/api/meta/sources` | Manbalar va ularning oxirgi yig'ilish holati |
+| GET | `/api/health` | Scheduler/ma'lumot yangiligi monitoringi |
+| GET | `/actuator/health` | Oddiy tiriklik tekshiruvi (DB'siz) |
+| GET | `/api/rates/latest` | Eng so'nggi takliflar (filtrlar: tur, bank, segment) |
+| GET | `/api/rates/currency-stats` | Valyuta kurslari statistikasi |
+| GET | `/api/rates/currency-history` | Valyuta kursi tarixi |
+| POST | `/api/products` | Yangi mahsulot g'oyasini qo'shish |
+| GET | `/api/products` | Saqlangan mahsulot g'oyalari |
+| GET | `/api/products/{id}` | Bitta mahsulot va bozor bilan tahlil |
+| PATCH | `/api/products/{id}` | Mahsulotni tahrirlash |
+| DELETE | `/api/products/{id}` | Mahsulotni o'chirish |
+| POST | `/api/products/recommend` | AI (Claude) yangi mahsulot tavsiyasi |
+
 ## Loyiha tuzilishi
 
 ```
+main.py                    Kirish nuqtasi: alembic upgrade head + uvicorn
 app/
-  api.py                 FastAPI endpointlari (CORS shu yerda yoqiladi)
+  api.py                   FastAPI ilovasi, CORS, router'larni ulash
+  routers/                 meta.py, rates.py, products.py — endpointlar
+  schemas.py               Pydantic so'rov/javob sxemalari
+  db.py, models.py         SQLAlchemy sozlamalari va modellar
+  rate_store.py            Takliflarni saqlash/o'qish qatlami
+  product_analysis.py      Mahsulot g'oyasini bozor bilan solishtirish
   product_recommendation.py  AI (Claude) orqali yangi mahsulot tavsiyasi
-  banks.py                Banklar ro'yxati, mahsulot turlari, segmentlar,
-                           bank nomini kodga moslashtirish (resolve_bank_code)
-  config.py                Nozik adapter — qiymatlarni `config/` paketidan oladi
-  db.py, models.py        SQLAlchemy sozlamalari va BankRate modeli
-  schedule.py              Kunlik jadval matematikasi (soatlar, keyingi/o'tgan tikish) — sof modul
-  scheduler.py             Connectorlarni fon rejimida jadval/interval bo'yicha ishga tushirish
+  banks.py                 Banklar, mahsulot turlari, segmentlar, resolve_bank_code
+  schedule.py              Kunlik jadval matematikasi — sof modul
+  scheduler.py             Connectorlarni jadval/interval bo'yicha ishga tushirish
+  outbound.py              Tashqi chiqish siyosati (faol oyna, host tanaffusi)
+  resilience.py            Retry / circuit-breaker
+  rate_limiter.py, ttl_cache.py  API himoyasi va kesh
   connectors/
-    base.py               Barcha connectorlar uchun umumiy asos (BaseConnector)
-    cbu.py                 O'zbekiston Markaziy banki — rasmiy JSON API
-    depozit_uz.py          depozit.uz'dagi depozit/kredit kartochka blokllari
-    depozit_tables.py      depozit.uz'dagi jadval ko'rinishidagi sahifalar
-                           (kredit/debet kartalar, obligatsiyalar)
-    example_bank_scraper.py  Rasmiy API bermaydigan banklar uchun shablon
-    registry.py             Barcha connectorlar shu yerda ro'yxatga olinadi
+    base.py                BaseConnector — umumiy asos
+    registry.py            Barcha connectorlar ro'yxati (CONNECTORS)
+    http.py, playwright_fetch.py, html_cards.py  Umumiy yuklash/parse yordamchilari
+    cbu.py, cbu_dynamics.py, opendata_rates.py   Markaziy bank va ochiq ma'lumotlar
+    depozit_uz.py, depozit_tables.py, depozit_exchange.py  depozit.uz
+    uzse.py, exchange.py   Fond birjasi va valyuta
+    <bank>.py              Har bir bank uchun alohida connector (40+)
+config/                    Sozlamalar paketi (base.py, dev.py, prod.py; PROFILE bo'yicha)
+migrations/                Alembic migratsiyalari
+scripts/                   migrate_sqlite_to_postgres.py
 tests/                     pytest testlari
-config/                    Sozlamalar paketi:
-  base.py                   Maydon shakli (qiymatlar env/.env'dan keladi)
-  dev.py / prod.py          Profile klasslari
-  __init__.py               PROFILE bo'yicha tanlash
 ```
 
 ## Yangi connector qo'shish
@@ -172,5 +205,5 @@ config/                    Sozlamalar paketi:
 
 ## Deploy
 
-Railway'ga joylash — repo ildizidagi `DEPLOY.md`. Barcha sozlamalar muhit
+Railway'ga joylash — repo ildizidagi [`DEPLOY.md`](../DEPLOY.md). Barcha sozlamalar muhit
 o'zgaruvchilaridan o'qiladi, to'liq ro'yxat `.env.example`da.
