@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+logs/
+logs_dev.log
+frontend_server.log
+tests/
+.pytest_cache/
+.git/
+# Lokal .env (API kalitlari) obrazga tushmasin.
+.env
+.env.*
+!.env.example

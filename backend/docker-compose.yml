@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bank_news_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bank_news
+      POSTGRES_PASSWORD: bank_news
+      POSTGRES_DB: bank_news
+    ports:
+      # 5433 (5432 emas): bu mashinada allaqachon boshqa mahalliy PostgreSQL
+      # xizmati (Windows service "postgresql-x64-15") 5432-portda ishlab
+      # turibdi — unga tegmaslik uchun konteyner boshqa portga chiqariladi.
+      - "5433:5432"
+    volumes:
+      - bank_news_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bank_news -d bank_news"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bank_news_postgres_data:

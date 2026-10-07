@@ -1,0 +1,23 @@
+# Runtime dependencies — exact pins, matched to .venv (pip freeze).
+# Test-only deps live in requirements-dev.txt.
+alembic==1.20.0
+anthropic==1.11.0
+APScheduler==3.11.3
+beautifulsoup4==4.15.0
+# Quyidagi ikkitasi bir juftlik: imzo tekshiruvi PyJWT[crypto] orqali,
+# `cryptography` esa aniq pin sifatida (testlar uni bevosita import qiladi).
+cryptography==50.0.1
+fastapi==0.141.1
+playwright==1.62.0
+psycopg[binary]==3.3.5
+pydantic-settings==2.15.0
+# PYSEC-2026-4141 / CVE-2026-101918: imzolashdan OLDIN payload parse
+# qilishda RecursionError (DoS) — 2.15.0 da tuzatilgan, `pip-audit --strict`
+# uni talab qiladi.
+PyJWT[crypto]==2.15.0
+python-dotenv==1.2.3
+requests==2.34.2
+sentry-sdk==2.69.2
+SQLAlchemy==2.0.53
+uvicorn[standard]==0.53.0
+

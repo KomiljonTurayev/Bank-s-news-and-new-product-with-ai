@@ -1,0 +1,14 @@
+# Qator yakuni QAT'IY LF. entrypoint.sh CRLF bilan imagen ichiga tushsa
+# interpreter `#!/bin/sh^M` (bad interpreter) deb CrashLoopBackOff bo'ladi —
+# Windows checkout'ida core.autocrlf=true buni avzomatdan qiladi, shuning
+# uchun tuzatish faylning hozirgi baytlarida emas, shu qoidada (QA-AUDIT-2026-09-18.md top#11).
+# Kiritilgandan keyin: git add --renormalize .
+* text=auto eol=lf
+*.sh text eol=lf
+nginx.conf text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.png binary
+*.webp binary
+*.ico binary
+*.woff2 binary

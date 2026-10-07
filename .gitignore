@@ -1,0 +1,33 @@
+# Dependencies / build
+node_modules/
+dist/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+.env.local
+
+# Local data, logs
+*.db
+*.db-shm
+*.db-wal
+*.log
+logs/
+check.err
+check.out
+
+# Scratch / probes / artifacts
+*.tmp.*
+tmp-*.mjs
+*.png
+*.pptx
+_tmp_shots/
+output/
+pptx_assets/
+pptx_build/
+.playwright-cli/
+lintfull.txt

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+.venv/
+venv/
+logs/
+*.log
+logs_dev.log
+frontend_server.log
+.env
