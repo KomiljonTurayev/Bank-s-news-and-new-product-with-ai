@@ -6,6 +6,9 @@ type OffersUiState = {
   sort: string;
   view: string;
   compareCodes: string[];
+  // Batafsil filtrlar (filter-bar.tsx): kalit -> qiymat, masalan
+  // { category: "Ipoteka", term: "13-36" }. Tab almashganda tozalanadi.
+  filters: Record<string, string>;
 };
 
 const initialState: OffersUiState = {
@@ -14,6 +17,7 @@ const initialState: OffersUiState = {
   sort: "best",
   view: "cards",
   compareCodes: [],
+  filters: {},
 };
 
 // Bozor taklifi filtr/saralash/ko'rinish holati — tab/qidiruv/saralash
@@ -25,6 +29,15 @@ const offersUiSlice = createSlice({
   reducers: {
     setProduct: (state, action: PayloadAction<string>) => {
       state.product = action.payload;
+      state.filters = {};
+    },
+    setFilter: (state, action: PayloadAction<{ key: string; value: string | null }>) => {
+      const { key, value } = action.payload;
+      if (value === null || state.filters[key] === value) delete state.filters[key];
+      else state.filters[key] = value;
+    },
+    clearFilters: state => {
+      state.filters = {};
     },
     setSearch: (state, action: PayloadAction<string>) => {
       state.search = action.payload;
@@ -52,6 +65,8 @@ const offersUiSlice = createSlice({
 
 export const {
   setProduct,
+  setFilter,
+  clearFilters,
   setSearch,
   setSort,
   setView,

@@ -176,6 +176,10 @@ class BankRateOut(BaseModel):
     segment: str
     data: dict = Field(description="Manbaga qarab o'zgaruvchi xom ma'lumot (masalan foiz stavkasi, mahsulot nomi, havola)")
     fetched_at: datetime = Field(description="Ma'lumot manbadan qachon yig'ilgani")
+    facets: dict = Field(
+        default_factory=dict,
+        description="Filtr qirralari: valyuta, muddat (oy), summa, kredit turi, karta turi/to'lov tizimi",
+    )
 
 
 class CurrencyStatsOut(BaseModel):

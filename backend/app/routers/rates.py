@@ -4,6 +4,7 @@ cbu.uz rasmiy valyuta kursi dinamikasi."""
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
+from app.offer_facets import offer_facets
 from app.connectors.cbu_dynamics import TRACKED_CODES, fetch_all_histories, stats_for_window, window_for_days
 from app.db import SessionLocal
 from app.models import BankRate
@@ -64,6 +65,7 @@ def get_latest_rates(
                 "segment": row.segment,
                 "data": row.data,
                 "fetched_at": row.fetched_at,
+                "facets": offer_facets(row.product_type, row.data),
             }
             for row in latest_by_key.values()
         ]

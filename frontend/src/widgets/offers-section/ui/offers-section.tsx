@@ -4,6 +4,7 @@ import { useI18n } from "@/shared/lib/i18n/i18n-context";
 import { useOffers } from "@/entities/offer";
 
 import Tabs from "./tabs";
+import FilterBar from "./filter-bar";
 import TopOffers from "./top-offers";
 import Toolbar from "./toolbar";
 import ComparePanel from "./compare-panel";
@@ -39,6 +40,7 @@ export default function OffersSection() {
   return (
     <>
       <Tabs />
+      <FilterBar />
       <TopOffers />
       <Toolbar />
       <ComparePanel />

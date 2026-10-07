@@ -6,8 +6,11 @@ import type { AppDispatch, RootState } from "@/app/store";
 import { useMeta } from "@/entities/meta";
 
 import { buildBankDirectory, groupByBank } from "../lib/offers-data";
+import { matchesOfferFilters } from "../lib/offer-filters";
 import {
   setProduct,
+  setFilter,
+  clearFilters,
   setSearch,
   setSort,
   setView,
@@ -32,9 +35,16 @@ export function useOffers() {
   const ui = useSelector((s: RootState) => s.offersUi);
 
   const { data, isLoading, isError } = useOffersQuery(ui.product, SEGMENT);
-  const rows = data ?? [];
+  const allRows = useMemo(() => data ?? [], [data]);
+  // Batafsil filtrlar (kredit turi, muddat, valyuta, ...) shu yerda bir marta
+  // qo'llanadi — kartalar, jadval, grafik va "eng yaxshi" bloki bir xil
+  // filtrlangan ro'yxatni ko'radi.
+  const rows = useMemo(
+    () => allRows.filter((row: any) => matchesOfferFilters(row, ui.product, ui.filters)),
+    [allRows, ui.product, ui.filters],
+  );
 
-  const directory = useMemo(() => buildBankDirectory(rows, banks), [rows, banks]);
+  const directory = useMemo(() => buildBankDirectory(allRows, banks), [allRows, banks]);
   const byBank = useMemo(() => groupByBank(rows), [rows]);
   const latestFetch = useMemo(
     () => rows.reduce((max: string, r: any) => (r.fetched_at > max ? r.fetched_at : max), ""),
@@ -51,6 +61,10 @@ export function useOffers() {
     setSort: (v: string) => dispatch(setSort(v)),
     view: ui.view,
     setView: (v: string) => dispatch(setView(v)),
+    filters: ui.filters,
+    setFilter: (key: string, value: string | null) => dispatch(setFilter({ key, value })),
+    clearFilters: () => dispatch(clearFilters()),
+    allRows,
     compareSet,
     toggleCompare: (code: string) => dispatch(toggleCompare(code)),
     clearCompare: () => dispatch(clearCompare()),
