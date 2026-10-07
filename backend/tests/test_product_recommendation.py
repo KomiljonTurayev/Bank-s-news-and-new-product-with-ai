@@ -34,6 +34,7 @@ def _seed(session_factory):
 
 def _result() -> RecommendationResult:
     return RecommendationResult(
+        goal_on_topic=True,
         market_overview="Omonat stavkalari 18-21% oralig'ida.",
         # #99 — ro'yxatda yo'q, ikkinchi #1 — takror: ikkalasi ham tashlanadi.
         market_leaders=[
@@ -167,3 +168,37 @@ def test_recommend_hides_raw_ai_error_on_bad_request(session_factory, monkeypatc
 
     assert response.status_code == 503
     assert raw not in response.json()["detail"]
+
+
+@pytest.mark.parametrize("goal", ["yoshlar uchun fuck omonat", "СУКА кредит", "jalablar uchun", "f*ck", "порно карта"])
+def test_recommend_rejects_inappropriate_goal_without_calling_ai(session_factory, monkeypatch, goal):
+    _seed(session_factory)
+    messages = _FakeMessages(SimpleNamespace(stop_reason="end_turn", parsed_output=_result(), model="m"))
+    _fake_client(monkeypatch, messages)
+
+    response = client.post("/api/products/recommend", json={"product_type": "deposit", "goal": goal})
+
+    assert response.status_code == 422
+    assert messages.calls == []
+
+
+@pytest.mark.parametrize(
+    "goal",
+    ["yoshlar uchun omonat", "Ipoteka uchun sekin o'suvchi stavka", "Сексуальная? нет — бизнес-карта", "Sikl bo'yicha kredit", "jismoniy shaxslar uchun karta"],
+)
+def test_input_guard_allows_normal_banking_text(goal):
+    from app.input_guard import is_inappropriate
+
+    # "Сексуальная" — ataylab: 18+ ildizi so'z boshida bo'lsa ushlanadi.
+    assert is_inappropriate(goal) is ("Сексуальная" in goal)
+
+
+def test_recommend_rejects_off_topic_goal(session_factory, monkeypatch):
+    _seed(session_factory)
+    off_topic = _result().model_copy(update={"goal_on_topic": False})
+    _fake_client(monkeypatch, _FakeMessages(SimpleNamespace(stop_reason="end_turn", parsed_output=off_topic, model="m")))
+
+    response = client.post("/api/products/recommend", json={"product_type": "deposit", "goal": "ertaga ob-havo qanday?"})
+
+    assert response.status_code == 422
+    assert "bank mahsulotlari" in response.json()["detail"]

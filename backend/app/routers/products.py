@@ -114,6 +114,7 @@ def create_product(payload: CustomProductIn, request: Request):
     summary="AI orqali yangi mahsulot tavsiya qilish",
     responses={
         404: {"description": "Bu turdagi bozor takliflari bazada yo'q"},
+        422: {"description": "Maqsad matni nojo'ya yoki bank sohasiga aloqasiz"},
         429: {"description": "Juda ko'p so'rov — bitta IP manzildan soatiga 10 tadan ortiq emas"},
         502: {"description": "AI xizmati javob bermadi yoki rad etdi"},
         503: {"description": "AI tavsiya sozlanmagan (API kalit yo'q)"},
