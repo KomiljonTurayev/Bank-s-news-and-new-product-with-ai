@@ -42,6 +42,7 @@ def test_parse_term_months(text, months):
         ("1.0 mlrd. so'mgacha", (None, 1_000_000_000)),
         ("100 000 so'm - 500 000 000 so'm", (100_000, 500_000_000)),
         ("Cheklanmagan", (None, None)),
+        ("Oylik ish haqining 3 baravarigacha", (None, None)),
     ],
 )
 def test_parse_amounts(text, expected):

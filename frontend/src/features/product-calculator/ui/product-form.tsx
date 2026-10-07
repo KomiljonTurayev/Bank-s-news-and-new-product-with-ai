@@ -125,7 +125,7 @@ export default function ProductForm({ editId }: Readonly<{ editId?: number }>) {
 
   const minAmount = useAmountField();
   const maxAmount = useAmountField();
-  const rate = useNumberField(1000);
+  const rate = useNumberField(100);
   const term = useNumberField(NP_TERM_MAX_MONTHS);
   const initialPayment = useNumberField(100);
 
@@ -518,7 +518,7 @@ export default function ProductForm({ editId }: Readonly<{ editId?: number }>) {
                 type="number"
                 step="0.01"
                 min="0"
-                max="1000"
+                max="100"
                 required
                 placeholder="20"
                 value={rate.value}

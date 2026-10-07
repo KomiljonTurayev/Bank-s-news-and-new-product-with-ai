@@ -18,10 +18,10 @@ class CustomProductIn(BaseModel):
     bank_name: str | None = Field(default=None, max_length=150)
     purpose: str | None = Field(default=None, max_length=300)
     currency: Literal["UZS", "USD", "EUR"] = "UZS"
-    # Foiz stavkasi uchun yuqori chegara — 1000% xatolik/qo'l xatosini
-    # ("20" o'rniga "2000" kabi) ushlash uchun sanity-check, real bozor
-    # stavkasidan ancha yuqori.
-    rate: float = Field(ge=0, le=1000)
+    # Foiz stavkasi uchun yuqori chegara — qo'l xatosini ("20" o'rniga
+    # "200" kabi) ushlash uchun sanity-check: bozordagi eng yuqori stavka
+    # (mikroqarz) ~45%, 100% undan ancha yuqori.
+    rate: float = Field(ge=0, le=100)
     # 1 milliard — summa maydonlari uchun yuqori chegara (qo'l xatosini,
     # masalan ortiqcha nol qo'shib yuborishni, ushlaydi).
     min_amount: float | None = Field(default=None, ge=0, le=1_000_000_000)
@@ -57,7 +57,7 @@ class CustomProductPatch(BaseModel):
     bank_name: str | None = Field(default=None, max_length=150)
     purpose: str | None = Field(default=None, max_length=300)
     currency: Literal["UZS", "USD", "EUR"] | None = None
-    rate: float | None = Field(default=None, ge=0, le=1000)
+    rate: float | None = Field(default=None, ge=0, le=100)
     min_amount: float | None = Field(default=None, ge=0, le=1_000_000_000)
     max_amount: float | None = Field(default=None, ge=0, le=1_000_000_000)
     term_months: int | None = Field(default=None, ge=1, le=240)

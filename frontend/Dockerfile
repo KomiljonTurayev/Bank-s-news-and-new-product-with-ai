@@ -16,6 +16,8 @@ COPY . .
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
+# CSP uchun inline skript xeshi — tayyor dist/index.html'dan hisoblanadi.
+RUN node scripts/csp-hash.mjs dist/index.html security-headers.conf
 
 FROM nginx:1.27-alpine
 
@@ -43,6 +45,7 @@ ENV API_UPSTREAM=http://backend:8000
 # yozadi (faqat ${API_UPSTREAM} va ${RESOLVER};
 # nginx'ning o'z $host/$uri kabi o'zgaruvchilariga tegilmaydi).
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY --from=build /build/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /build/dist/ /usr/share/nginx/html/
 
 COPY entrypoint.sh /entrypoint.sh

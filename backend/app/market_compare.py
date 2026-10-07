@@ -35,7 +35,8 @@ _UNIT_MONTHS = {"oy": 1, "мес": 1, "yil": 12, "йил": 12, "год": 12, "л
 
 _NUMBER_RE = re.compile(r"(\d[\d\s,. ]*)\s*(mlrd|млрд|mln|млн|ming|тыс)?", re.IGNORECASE)
 _MULTIPLIERS = {"mlrd": 1e9, "млрд": 1e9, "mln": 1e6, "млн": 1e6, "ming": 1e3, "тыс": 1e3}
-_MIN_MARKERS = re.compile(r"dan\b|от\b|minimal|min\.?\b", re.IGNORECASE)
+_MIN_PLAIN_AMOUNT = 1000
+_MIN_MARKERS =re.compile(r"dan\b|от\b|minimal|min\.?\b", re.IGNORECASE)
 _MAX_MARKERS = re.compile(r"gacha|до\b|maksimal|max\.?\b", re.IGNORECASE)
 
 # Muddat oraliqlari (oy): omonat qisqa, kredit uzoq muddatli bo'ladi.
@@ -97,7 +98,13 @@ def parse_amounts(text: str | None, single_is_max: bool = False) -> tuple[float 
     (kredit summasi/limit) — `single_is_max`."""
     if not text:
         return None, None
-    numbers = [n for n in (_to_number(raw, unit) for raw, unit in _NUMBER_RE.findall(text)) if n]
+    # Birliksiz kichik son summa emas: "ish haqining 3 baravarigacha",
+    # "18 yoshgacha" — so'mdagi summa kamida 1 000 bo'ladi.
+    numbers = [
+        n
+        for n in (_to_number(raw, unit) for raw, unit in _NUMBER_RE.findall(text))
+        if n and n >= _MIN_PLAIN_AMOUNT
+    ]
     if not numbers:
         return None, None
     if len(numbers) >= 2:
