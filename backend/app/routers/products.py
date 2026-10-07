@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.banks import PRODUCT_TYPES
 from app.db import SessionLocal
+from app.market_compare import compare_market
 from app.models import CustomProduct
 from app.product_analysis import Lang, analyze_product, top_market_offers
 from app.product_recommendation import RecommendationError, recommend_products
@@ -18,6 +19,7 @@ from app.schemas import (
     CustomProductIn,
     CustomProductOut,
     CustomProductPatch,
+    MarketCompareOut,
     MarketLeaderOut,
     ProductWithAnalysisOut,
     RecommendationIn,
@@ -226,6 +228,19 @@ def market_leaders(product_type: Literal["credit", "deposit", "card", "investmen
     Tashqi API'ga murojaat yo'q — bepul va bir zumda."""
     with SessionLocal() as session:
         return top_market_offers(product_type, session, limit)
+
+
+@router.get(
+    "/market-compare",
+    response_model=MarketCompareOut,
+    summary="Bozorni stavka, muddat va summa kesimida batafsil solishtirish (AI'siz)",
+)
+def market_compare(product_type: Literal["credit", "deposit", "card", "investment"], category: str | None = None):
+    """So'mdagi, jismoniy shaxslar uchun takliflar: muddat (oy) va summa
+    raqamga keltirilgan, muddat oraliqlari va kategoriyalar bo'yicha
+    stavka statistikasi (min / o'rtacha / max, eng yaxshi taklif)."""
+    with SessionLocal() as session:
+        return compare_market(product_type, session, category)
 
 
 @router.get(

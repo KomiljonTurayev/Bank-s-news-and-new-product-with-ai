@@ -283,6 +283,49 @@ class MarketLeaderOut(BaseModel):
     why: str | None = Field(default=None, description="AI izohi — faqat AI tanlagan yetakchilarda")
 
 
+class CompareOfferOut(BaseModel):
+    bank_code: str
+    bank_name: str
+    name: str
+    category: str | None = None
+    rate: float
+    term_months: int | None = None
+    term_text: str | None = None
+    min_amount: float | None = None
+    max_amount: float | None = None
+    amount_text: str | None = None
+    url: str | None = None
+
+
+class CompareStatsOut(BaseModel):
+    count: int
+    min_rate: float
+    avg_rate: float
+    max_rate: float
+    banks: int
+    best: CompareOfferOut
+
+
+class TermBucketOut(CompareStatsOut):
+    key: str
+    from_months: int
+    to_months: int | None = None
+
+
+class CategoryStatsOut(CompareStatsOut):
+    name: str
+
+
+class MarketCompareOut(BaseModel):
+    product_type: str
+    category: str | None = None
+    lower_is_better: bool
+    overall: CompareStatsOut | None = None
+    term_buckets: list[TermBucketOut]
+    categories: list[CategoryStatsOut]
+    offers: list[CompareOfferOut]
+
+
 class RecommendationOut(BaseModel):
     product_type: str
     category: str | None = None

@@ -7,6 +7,7 @@ import { fetchJSON, apiFetch, invalidateJsonCache } from "@/shared/api/base";
 
 import { productTypeLabel, categoryLabel } from "../lib/product-labels";
 import AiAdvisor from "./ai-advisor";
+import MarketCompare from "./market-compare";
 
 type Product = {
   id: number;
@@ -251,6 +252,8 @@ export default function ProductList() {
         </div>
 
         <AiAdvisor />
+
+        <MarketCompare />
 
         <div className="pp-list-section">
           {products && products.length > 0 && (

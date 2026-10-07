@@ -3133,3 +3133,185 @@ tr.active .mpl-ccy-name {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Bozorni batafsil solishtirish (market-compare.tsx) ── */
+.mc {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.mc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.mc-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.mc-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.mc-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mc-empty {
+  color: var(--text-muted);
+}
+.mc-overall {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.mc-overall div {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--accent-tint);
+}
+.mc-overall dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.mc-overall dd {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.mc-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.mc-category select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--card-bg);
+  color: var(--text);
+  font: inherit;
+}
+.mc-buckets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.mc-bucket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--card-bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mc-bucket:hover {
+  border-color: var(--accent);
+}
+.mc-bucket.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint-2);
+}
+.mc-bucket-term {
+  font-size: 16px;
+  font-weight: 800;
+}
+.mc-bucket-count,
+.mc-bucket-best {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.mc-range {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent-tint);
+}
+.mc-range-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-tint-2);
+}
+.mc-range-avg {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 12px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.mc-bucket-rates {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mc-bucket-rates b {
+  color: var(--accent);
+}
+.mc-table th button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mc-table td {
+  white-space: nowrap;
+}
+.mc-table td:nth-child(2) {
+  white-space: normal;
+}
+.mc-rate {
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.mc-cat {
+  color: var(--text-faint);
+}
+.mc-more {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mc-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+@media (max-width: 640px) {
+  .mc {
+    padding: 14px 12px;
+  }
+}

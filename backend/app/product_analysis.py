@@ -342,12 +342,16 @@ def offer_details(data: dict) -> dict:
     return {"term": _first_field(data, _TERM_KEY_RE), "amount": _first_field(data, _AMOUNT_KEY_RE)}
 
 
-def top_market_offers(product_type: str, session: Session, limit: int = 3) -> list[dict]:
-    """Jismoniy shaxslar uchun so'mdagi eng maqbul stavkali takliflar — har
-    bankdan bittadan. Omonatda yuqori, kredit va kredit kartada past stavka
-    maqbul (karta bo'limida faqat kredit kartalar solishtiriladi)."""
-    lower_is_better = product_type in _LOWER_IS_BETTER_TYPES or product_type == "card"
-    today = date.today()
+def lower_rate_is_better(product_type: str) -> bool:
+    """Kredit va kredit kartada past, omonat/investitsiyada yuqori stavka maqbul."""
+    return product_type in _LOWER_IS_BETTER_TYPES or product_type == "card"
+
+
+def comparable_offers(product_type: str, session: Session, today: date) -> list[tuple[float, BankRate]]:
+    """Solishtirishga yaroqli takliflar (stavka, yozuv): so'mdagi, jismoniy
+    shaxslar uchun, muddati o'tmagan, stavkasi aniq; karta bo'limida faqat
+    kredit kartalar, kreditda subsidiyali past stavkalarsiz."""
+    lower_is_better = lower_rate_is_better(product_type)
     rated = []
     for row in _market_rows(product_type, session):
         if row.segment != "individual" or _FOREIGN_CURRENCY_RE.search(" ".join(map(str, row.data.values()))):
@@ -360,7 +364,14 @@ def top_market_offers(product_type: str, session: Session, limit: int = 3) -> li
         if rate is None or rate <= 0 or rate > 100 or (lower_is_better and rate < _MIN_CREDIT_RATE):
             continue
         rated.append((rate, row))
-    rated.sort(key=lambda item: item[0], reverse=not lower_is_better)
+    return rated
+
+
+def top_market_offers(product_type: str, session: Session, limit: int = 3) -> list[dict]:
+    """Har bankdan bittadan eng maqbul stavkali takliflar (comparable_offers
+    qoidalari bilan)."""
+    rated = comparable_offers(product_type, session, date.today())
+    rated.sort(key=lambda item: item[0], reverse=not lower_rate_is_better(product_type))
 
     leaders, seen_banks = [], set()
     for rate, row in rated:
