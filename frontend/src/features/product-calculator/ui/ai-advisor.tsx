@@ -31,10 +31,21 @@ type Recommendation = {
   risks: string[];
 };
 
+type MarketLeader = {
+  bank_code: string;
+  bank_name: string;
+  name: string;
+  category: string | null;
+  rate: number;
+  url: string | null;
+  why: string;
+};
+
 type AdvisorReply = {
   market_count: number;
   model: string;
   market_overview: string;
+  market_leaders?: MarketLeader[];
   recommendations: Recommendation[];
 };
 
@@ -238,6 +249,9 @@ export default function AiAdvisor() {
   const [goal, setGoal] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
+  // Holat faqat haqiqiy javobdan kelib chiqadi: oldindan "onlayn" deb
+  // va'da berilmaydi. 502/503 = AI sozlanmagan yoki rad etdi.
+  const [aiStatus, setAiStatus] = useState<"unknown" | "online" | "offline">("unknown");
   const nextId = useRef(1);
   const threadRef = useRef<HTMLDivElement>(null);
 
@@ -268,9 +282,11 @@ export default function AiAdvisor() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (response.status === 502 || response.status === 503) setAiStatus("offline");
         const detail = typeof body.detail === "string" ? body.detail : t("ai_error_generic");
         throw new Error(detail);
       }
+      setAiStatus("online");
       setMessages(m => [...m, { id: nextId.current++, role: "assistant", reply: body }]);
     } catch (err: any) {
       const text =
@@ -306,9 +322,9 @@ export default function AiAdvisor() {
           <h3>{t("ai_title")}</h3>
           <p>{t("ai_subtitle")}</p>
         </div>
-        <span className="ai-head-status">
+        <span className={`ai-head-status is-${aiStatus}`}>
           <i aria-hidden="true" />
-          {t("ai_online")}
+          {t(aiStatus === "online" ? "ai_online" : aiStatus === "offline" ? "ai_offline" : "ai_brand")}
         </span>
       </header>
 
@@ -379,6 +395,33 @@ export default function AiAdvisor() {
                     {t("ai_meta", { count: msg.reply.market_count, model: msg.reply.model })}
                   </span>
                 </div>
+                {!!msg.reply.market_leaders?.length && (
+                  <section className="ai-leaders" aria-label={t("ai_leaders_title")}>
+                    <h4 className="ai-leaders-title">{t("ai_leaders_title")}</h4>
+                    <ol>
+                      {msg.reply.market_leaders.map(lead => (
+                        <li className="ai-leader" key={`${msg.id}-${lead.bank_code}-${lead.name}`}>
+                          <div className="ai-leader-main">
+                            <span className="ai-leader-bank">{lead.bank_name}</span>
+                            <span className="ai-leader-name">
+                              {lead.url ? (
+                                <a href={lead.url} target="_blank" rel="noopener noreferrer">
+                                  {lead.name || t("ai_leaders_offer")}
+                                </a>
+                              ) : (
+                                lead.name || t("ai_leaders_offer")
+                              )}
+                              {lead.category && <em> · {lead.category}</em>}
+                            </span>
+                            <p>{lead.why}</p>
+                          </div>
+                          <b className="ai-leader-rate">{lead.rate}%</b>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
+                <h4 className="ai-leaders-title">{t("ai_ideas_title")}</h4>
                 <div className="ai-recs">
                   {msg.reply.recommendations.map((rec, i) => (
                     <RecommendationCard rec={rec} index={i} key={`${msg.id}-${rec.name}`} />

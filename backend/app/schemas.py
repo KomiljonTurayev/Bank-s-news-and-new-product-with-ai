@@ -270,10 +270,24 @@ class RecommendedProductOut(BaseModel):
     risks: list[str]
 
 
+class MarketLeaderOut(BaseModel):
+    bank_code: str
+    bank_name: str
+    name: str
+    category: str | None = None
+    segment: str
+    rate: float
+    url: str | None = None
+    why: str
+
+
 class RecommendationOut(BaseModel):
     product_type: str
     category: str | None = None
     market_count: int = Field(description="AI'ga berilgan bozor takliflari soni")
     model: str = Field(description="Javob bergan Claude modeli")
     market_overview: str
+    market_leaders: list[MarketLeaderOut] = Field(
+        default_factory=list, description="Bozordagi mavjud takliflardan eng jozibador 3 tasi (ma'lumot bazadan)"
+    )
     recommendations: list[RecommendedProductOut]

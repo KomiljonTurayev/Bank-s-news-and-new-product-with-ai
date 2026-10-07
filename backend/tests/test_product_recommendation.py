@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import anthropic
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app import product_recommendation
 from app.api import app
 from app.models import BankRate
-from app.product_recommendation import RecommendationResult, RecommendedProduct
+from app.product_recommendation import MarketPick, RecommendationResult, RecommendedProduct
 
 client = TestClient(app)
 
@@ -34,6 +35,13 @@ def _seed(session_factory):
 def _result() -> RecommendationResult:
     return RecommendationResult(
         market_overview="Omonat stavkalari 18-21% oralig'ida.",
+        # #99 — ro'yxatda yo'q, ikkinchi #1 — takror: ikkalasi ham tashlanadi.
+        market_leaders=[
+            MarketPick(offer_no=1, why="Eng yuqori stavka"),
+            MarketPick(offer_no=99, why="to'qima"),
+            MarketPick(offer_no=1, why="takror"),
+            MarketPick(offer_no=2, why="Davlat banki"),
+        ],
         recommendations=[
             RecommendedProduct(
                 name="Yoshlar omonati",
@@ -93,6 +101,13 @@ def test_recommend_returns_parsed_products_and_sends_market_data(session_factory
     body = response.json()
     assert body["market_count"] == 2
     assert body["recommendations"][0]["name"] == "Yoshlar omonati"
+    # Bozor yetakchilari: bank/nom/stavka/havola AI'dan emas, bazadan olinadi.
+    leaders = body["market_leaders"]
+    assert [(lead["bank_code"], lead["name"], lead["rate"]) for lead in leaders] == [
+        ("SQB", "Jamg'arma", 21.0),
+        ("NBU", "Hamma uchun", 18.0),
+    ]
+    assert leaders[0]["url"] == "https://x" and leaders[0]["why"] == "Eng yuqori stavka"
     prompt = messages.calls[0]["messages"][0]["content"]
     assert "Hamma uchun" in prompt and "yoshlar uchun" in prompt
     # Yuqoriroq stavka omonatda foydali — eng yaxshisi birinchi.
@@ -139,3 +154,16 @@ def test_recommend_rejects_currency_type(session_factory):
     response = client.post("/api/products/recommend", json={"product_type": "currency"})
 
     assert response.status_code == 422
+
+
+def test_recommend_hides_raw_ai_error_on_bad_request(session_factory, monkeypatch):
+    _seed(session_factory)
+    raw = "This API key is not scoped to a workspace"
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    error = anthropic.BadRequestError(raw, response=httpx.Response(400, request=request), body=None)
+    _fake_client(monkeypatch, _FakeMessages(error=error))
+
+    response = client.post("/api/products/recommend", json={"product_type": "deposit"})
+
+    assert response.status_code == 503
+    assert raw not in response.json()["detail"]

@@ -30,6 +30,12 @@ _SKIPPED_FIELDS = {"url", "source", "name", "category"}
 ProductType = Literal["credit", "deposit", "card", "investment"]
 
 
+AI_MISCONFIGURED_MESSAGE = (
+    "AI tavsiya hozircha ishlamayapti: xizmat sozlamalarida xato bor. "
+    "Administratorga murojaat qiling yoki keyinroq urinib ko'ring."
+)
+
+
 class RecommendationError(Exception):
     """Tavsiya olinmadi — sababi foydalanuvchiga ko'rsatiladigan matnda."""
 
@@ -54,8 +60,16 @@ class RecommendedProduct(BaseModel):
     risks: list[str] = Field(description="Bank uchun asosiy xavf yoki cheklovlar")
 
 
+class MarketPick(BaseModel):
+    offer_no: int = Field(description="Bozor ro'yxatidagi taklifning tartib raqami (#N dagi N)")
+    why: str = Field(description="Nega bu taklif mijoz uchun jozibador — aniq raqamlar bilan, bir-ikki jumla")
+
+
 class RecommendationResult(BaseModel):
     market_overview: str = Field(description="Bozor holatining qisqa xulosasi (2-3 jumla)")
+    market_leaders: list[MarketPick] = Field(
+        description="Bozordagi MAVJUD takliflardan mijoz uchun eng jozibador 3 tasi, eng yaxshisi birinchi"
+    )
     recommendations: list[RecommendedProduct]
 
 
@@ -68,27 +82,33 @@ _SYSTEM_PROMPT = (
     "va summalarni bozordagi haqiqiy takliflar bilan solishtirib asoslang, raqobatchilardan "
     "qaysi jihatda yaxshiroq ekanini aniq ko'rsating. Bank uchun foyda keltirmaydigan "
     "(masalan, bozordagi eng yaxshi taklifdan keskin yaxshi va zarar bilan ishlaydigan) "
-    "mahsulotni tavsiya qilmang. Ma'lumot yetarli bo'lmasa, buni market_overview'da ochiq ayting."
+    "mahsulotni tavsiya qilmang. Ma'lumot yetarli bo'lmasa, buni market_overview'da ochiq ayting. "
+    "Bundan tashqari market_leaders'da bozordagi mavjud takliflardan mijoz uchun eng jozibador "
+    "3 tasini tartib raqami (#N) bilan tanlang: faqat stavkaga emas, muddat, minimal summa va "
+    "shartlarga ham qarang, va bir bankni takrorlamaslikka harakat qiling."
 )
 
 
 def _client() -> anthropic.Anthropic:
     if not ANTHROPIC_API_KEY:
-        raise RecommendationError("AI tavsiya sozlanmagan (ANTHROPIC_API_KEY bo'sh)", status_code=503)
+        logger.warning("AI tavsiya sozlanmagan: ANTHROPIC_API_KEY bo'sh")
+        raise RecommendationError(AI_MISCONFIGURED_MESSAGE, status_code=503)
     headers = {"anthropic-workspace-id": ANTHROPIC_WORKSPACE_ID} if ANTHROPIC_WORKSPACE_ID else None
     return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=120.0, default_headers=headers)
 
 
-def _market_lines(product_type: str, session: Session, category: str | None) -> list[str]:
-    """Promptga beriladigan bozor takliflari — har biri bitta qisqa satr."""
+def _market_lines(product_type: str, session: Session, category: str | None) -> tuple[list[str], list]:
+    """Promptga beriladigan bozor takliflari — har biri bitta qisqa, #N bilan
+    raqamlangan satr — va shu tartibdagi (stavka, yozuv) juftliklari."""
     rows = _market_rows(product_type, session, category)
     lower_is_better = product_type in _LOWER_IS_BETTER_TYPES
     rated = [(extract_rate_percent(row.data), row) for row in rows]
     rated = [(rate, row) for rate, row in rated if rate is not None]
     rated.sort(key=lambda item: item[0], reverse=not lower_is_better)
 
+    rated = rated[:_MARKET_ROWS_LIMIT]
     lines = []
-    for rate, row in rated[:_MARKET_ROWS_LIMIT]:
+    for no, (rate, row) in enumerate(rated, start=1):
         fields = "; ".join(
             f"{key}: {str(value)[:_FIELD_VALUE_LIMIT]}"
             for key, value in row.data.items()
@@ -96,10 +116,35 @@ def _market_lines(product_type: str, session: Session, category: str | None) -> 
         )
         category_part = f" [{row.data['category']}]" if row.data.get("category") else ""
         lines.append(
-            f"- {_BANK_NAMES.get(row.bank_code, row.bank_code)} | {row.segment} | "
+            f"#{no} {_BANK_NAMES.get(row.bank_code, row.bank_code)} | {row.segment} | "
             f"{row.data.get('name', '')}{category_part} | stavka {rate}% | {fields}"
         )
-    return lines
+    return lines, rated
+
+
+def _resolve_leaders(picks: list[MarketPick], rated: list) -> list[dict]:
+    """AI tanlagan tartib raqamlarini bazadagi haqiqiy yozuvlarga
+    almashtiradi — bank, nom, stavka va havola AI'dan emas, bazadan olinadi
+    (to'qib chiqarilgan raqam foydalanuvchiga yetib bormaydi)."""
+    leaders, seen = [], set()
+    for pick in picks:
+        if not 1 <= pick.offer_no <= len(rated) or pick.offer_no in seen:
+            continue
+        seen.add(pick.offer_no)
+        rate, row = rated[pick.offer_no - 1]
+        leaders.append(
+            {
+                "bank_code": row.bank_code,
+                "bank_name": _BANK_NAMES.get(row.bank_code, row.bank_code),
+                "name": str(row.data.get("name") or ""),
+                "category": row.data.get("category"),
+                "segment": row.segment,
+                "rate": rate,
+                "url": row.data.get("url"),
+                "why": pick.why,
+            }
+        )
+    return leaders[:3]
 
 
 def recommend_products(
@@ -110,7 +155,7 @@ def recommend_products(
     count: int = 3,
     lang: Lang = "uz",
 ) -> dict:
-    lines = _market_lines(product_type, session, category)
+    lines, rated = _market_lines(product_type, session, category)
     if not lines:
         raise RecommendationError("Bu turdagi bozor takliflari bazada hali yo'q — tavsiya uchun ma'lumot yetarli emas", 404)
 
@@ -144,12 +189,15 @@ def recommend_products(
         )
     except anthropic.AuthenticationError:
         logger.exception("Anthropic API kaliti rad etildi")
-        raise RecommendationError("AI xizmati kalitni rad etdi — ANTHROPIC_API_KEY ni tekshiring", 503)
+        raise RecommendationError(AI_MISCONFIGURED_MESSAGE, 503)
     except anthropic.RateLimitError:
         raise RecommendationError("AI xizmati band — birozdan so'ng qayta urinib ko'ring", 429)
-    except anthropic.BadRequestError as exc:
+    except anthropic.BadRequestError:
+        # Xom xabar (ingliz tilida, ichki sozlama tafsilotlari bilan) faqat
+        # server logida qoladi — foydalanuvchiga tushunarli matn boradi.
+        # 400 deyarli doim sozlama xatosi (kalit/workspace/model), shu bois 503.
         logger.exception("Anthropic API so'rovni rad etdi")
-        raise RecommendationError(f"AI xizmati so'rovni rad etdi: {exc.message}")
+        raise RecommendationError(AI_MISCONFIGURED_MESSAGE, 503)
     except anthropic.APIStatusError as exc:
         logger.exception("Anthropic API xatosi (%s)", exc.status_code)
         raise RecommendationError("AI xizmati xato qaytardi — keyinroq urinib ko'ring")
@@ -169,5 +217,6 @@ def recommend_products(
         "market_count": len(lines),
         "model": response.model,
         "market_overview": result.market_overview,
+        "market_leaders": _resolve_leaders(result.market_leaders, rated),
         "recommendations": [rec.model_dump() for rec in result.recommendations],
     }
