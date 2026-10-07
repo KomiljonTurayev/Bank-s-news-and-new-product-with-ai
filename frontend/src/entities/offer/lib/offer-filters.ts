@@ -2,7 +2,7 @@
 // hisoblanadi (app/offer_facets.py): kredit turi, muddat (oy), valyuta,
 // karta turi va to'lov tizimi.
 
-export type TermBucket = { key: string; from: number; to: number | null };
+type TermBucket = { key: string; from: number; to: number | null };
 
 // Omonat qisqa, kredit uzoq muddatli — oraliqlar shunga mos.
 export const TERM_BUCKETS: Record<string, TermBucket[]> = {
