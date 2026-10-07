@@ -24,7 +24,13 @@ from app.product_analysis import (
 
 # Kirill "о" ba'zi saytlarda lotin "o" o'rnida yoziladi ("18 оy").
 _CYRILLIC_LOOKALIKES = str.maketrans({"о": "o", "у": "y", "а": "a", "е": "e"})
-_TERM_PART_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:-|–|—)?\s*(\d+(?:[.,]\d+)?)?\s*(oy|мес|yil|йил|год|лет|kun|день|дн)", re.IGNORECASE)
+_TERM_PART_RE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(?:-|–|—)?\s*(\d+(?:[.,]\d+)?)?\s*(?:gacha\s*|до\s*)?(oy|мес|yil|йил|год|лет|kun|день|дн)",
+    re.IGNORECASE,
+)
+# "60 (oltmish) oy" — qavs ichidagi so'z bilan yozilgan son olib tashlanadi.
+_PARENS_RE = re.compile(r"\([^)]*\)")
+_DATE_RE = re.compile(r"\b(\d{2})\.(\d{2})\.(\d{4})\b")
 _UNIT_MONTHS = {"oy": 1, "мес": 1, "yil": 12, "йил": 12, "год": 12, "лет": 12, "kun": 1 / 30.4, "день": 1 / 30.4, "дн": 1 / 30.4}
 
 _NUMBER_RE = re.compile(r"(\d[\d\s,. ]*)\s*(mlrd|млрд|mln|млн|ming|тыс)?", re.IGNORECASE)
@@ -46,11 +52,26 @@ def parse_term_months(text: str | None) -> int | None:
     if not text:
         return None
     best = None
-    for low, high, unit in _TERM_PART_RE.findall(text.lower().translate(_CYRILLIC_LOOKALIKES)):
+    normalized = _PARENS_RE.sub(" ", text.lower().translate(_CYRILLIC_LOOKALIKES))
+    for low, high, unit in _TERM_PART_RE.findall(normalized):
         value = float((high or low).replace(",", "."))
         months = value * _UNIT_MONTHS[unit.lower()]
         best = months if best is None else max(best, months)
     return round(best) if best else None
+
+
+def months_until(text: str | None, today: date) -> int | None:
+    """Obligatsiya kabi sanali muddat ("21.05.2027") — bugundan necha oy qolgani."""
+    match = _DATE_RE.search(text or "")
+    if not match:
+        return None
+    day, month, year = map(int, match.groups())
+    try:
+        maturity = date(year, month, day)
+    except ValueError:
+        return None
+    months = (maturity.year - today.year) * 12 + maturity.month - today.month - (maturity.day < today.day)
+    return months if months > 0 else None
 
 
 def _to_number(raw: str, unit: str | None) -> float | None:
@@ -70,9 +91,10 @@ def _to_number(raw: str, unit: str | None) -> float | None:
     return value * _MULTIPLIERS.get((unit or "").lower(), 1)
 
 
-def parse_amounts(text: str | None) -> tuple[float | None, float | None]:
+def parse_amounts(text: str | None, single_is_max: bool = False) -> tuple[float | None, float | None]:
     """Summa matnidan (min, max) so'mda. "A - B" — ikkalasi; "…dan" — min;
-    "…gacha" — max; belgisiz bitta son — min (omonat/kartada odatiy)."""
+    "…gacha" — max; belgisiz bitta son — omonatda min, kredit/kartada max
+    (kredit summasi/limit) — `single_is_max`."""
     if not text:
         return None, None
     numbers = [n for n in (_to_number(raw, unit) for raw, unit in _NUMBER_RE.findall(text)) if n]
@@ -80,7 +102,9 @@ def parse_amounts(text: str | None) -> tuple[float | None, float | None]:
         return None, None
     if len(numbers) >= 2:
         return min(numbers), max(numbers)
-    if _MAX_MARKERS.search(text) and not _MIN_MARKERS.search(text):
+    if _MIN_MARKERS.search(text) and not _MAX_MARKERS.search(text):
+        return numbers[0], None
+    if _MAX_MARKERS.search(text) or single_is_max:
         return None, numbers[0]
     return numbers[0], None
 
@@ -104,13 +128,15 @@ def _stats(items: list[dict], lower_is_better: bool) -> dict:
 
 def compare_market(product_type: str, session: Session, category: str | None = None) -> dict:
     lower_is_better = lower_rate_is_better(product_type)
+    today = date.today()
+    single_is_max = product_type in ("credit", "card")
     offers = []
-    for rate, row in comparable_offers(product_type, session, date.today()):
+    for rate, row in comparable_offers(product_type, session, today):
         if category and row.data.get("category") != category:
             continue
         term_text = _first_field(row.data, _TERM_KEY_RE)
         amount_text = _first_field(row.data, _AMOUNT_KEY_RE)
-        min_amount, max_amount = parse_amounts(amount_text)
+        min_amount, max_amount = parse_amounts(amount_text, single_is_max)
         offers.append(
             {
                 "bank_code": row.bank_code,
@@ -118,7 +144,7 @@ def compare_market(product_type: str, session: Session, category: str | None = N
                 "name": str(row.data.get("name") or ""),
                 "category": row.data.get("category"),
                 "rate": rate,
-                "term_months": parse_term_months(term_text),
+                "term_months": parse_term_months(term_text) or months_until(term_text, today),
                 "term_text": term_text,
                 "min_amount": min_amount,
                 "max_amount": max_amount,

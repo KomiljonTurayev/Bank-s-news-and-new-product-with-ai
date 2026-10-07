@@ -21,6 +21,8 @@ client = TestClient(app)
         ("555 kun", 18),
         ("84 oygacha", 84),
         ("18 оy", 18),  # kirill "о"
+        ("Maksimal muddat imtiyozli davrsiz - 60 (oltmish) oy", 60),
+        ("60 gacha oylar", 60),
         ("18 yoshgacha", None),
         ("Cheklanmagan", None),
         (None, None),
@@ -44,6 +46,20 @@ def test_parse_term_months(text, months):
 )
 def test_parse_amounts(text, expected):
     assert parse_amounts(text) == expected
+
+
+def test_parse_amounts_single_value_is_limit_for_credit():
+    assert parse_amounts("50 mln. so’m", single_is_max=True) == (None, 50_000_000)
+    assert parse_amounts("100 000 so'mdan", single_is_max=True) == (100_000, None)
+
+
+def test_months_until_maturity():
+    from datetime import date
+
+    from app.market_compare import months_until
+
+    assert months_until("21.05.2027", date(2026, 10, 7)) == 7
+    assert months_until("03.03.2023", date(2026, 10, 7)) is None
 
 
 def test_market_compare_buckets_and_stats(session_factory):
