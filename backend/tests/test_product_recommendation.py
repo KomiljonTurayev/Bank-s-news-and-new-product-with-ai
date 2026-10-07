@@ -237,12 +237,26 @@ def test_market_leaders_ranks_uzs_individual_offers_one_per_bank(session_factory
 def test_market_leaders_credit_prefers_lowest_realistic_rate(session_factory):
     with session_factory() as session:
         now = datetime.now(timezone.utc)
-        for bank, rate in [("SQB", "24%"), ("NBU", "19%"), ("XB", "0% dan")]:
+        for bank, rate in [("SQB", "24%"), ("NBU", "19%"), ("XB", "0% dan"), ("KDB", "5,5%")]:
             session.add(
                 BankRate(bank_code=bank, product_type="credit", segment="individual", data={"name": "K", "Foiz": rate}, fetched_at=now)
             )
         session.commit()
 
     leaders = client.get("/api/products/market-leaders", params={"product_type": "credit"}).json()
+
+    assert [lead["bank_code"] for lead in leaders] == ["NBU", "SQB"]
+
+
+def test_market_leaders_card_compares_credit_cards_lowest_first(session_factory):
+    with session_factory() as session:
+        now = datetime.now(timezone.utc)
+        for bank, name, rate in [("SQB", "Kredit karta", "36%"), ("NBU", "Kredit karta", "28%"), ("XB", "Debet karta", "5%")]:
+            session.add(
+                BankRate(bank_code=bank, product_type="card", segment="individual", data={"name": name, "Foiz": rate}, fetched_at=now)
+            )
+        session.commit()
+
+    leaders = client.get("/api/products/market-leaders", params={"product_type": "card"}).json()
 
     assert [lead["bank_code"] for lead in leaders] == ["NBU", "SQB"]

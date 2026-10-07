@@ -304,9 +304,13 @@ def analyze_product(
 _FOREIGN_CURRENCY_RE = re.compile(r"\b(usd|eur|aqsh dollar|dollar|yevro|evro|euro)\b|\$|€", re.IGNORECASE)
 _TERM_KEY_RE = re.compile(r"muddat", re.IGNORECASE)
 _AMOUNT_KEY_RE = re.compile(r"summa|miqdor", re.IGNORECASE)
-# Kreditda bundan past stavka deyarli doim subsidiyali/aksiya ("0% dan")
-# yoki valyutadagi taklif — "eng arzon" deb ko'rsatish chalg'itadi.
-_MIN_CREDIT_RATE = 5.0
+# Kreditda bundan past stavka deyarli doim subsidiyali/aksiya ("0% dan",
+# avtosalon bilan hamkorlikdagi 5-6% avtokreditlar) — "bozordagi eng arzon"
+# deb ko'rsatish chalg'itadi.
+_MIN_CREDIT_RATE = 10.0
+# Karta bo'limida stavka asosan kredit kartaning foizi — u yerda past stavka
+# maqbul; bunday yozuvlar nomidan ajratiladi.
+_CREDIT_CARD_RE = re.compile(r"kredit|credit|кредит", re.IGNORECASE)
 _DETAIL_LIMIT = 60
 
 
@@ -324,11 +328,14 @@ def offer_details(data: dict) -> dict:
 
 def top_market_offers(product_type: str, session: Session, limit: int = 3) -> list[dict]:
     """Jismoniy shaxslar uchun so'mdagi eng maqbul stavkali takliflar — har
-    bankdan bittadan. Omonat/kartada yuqori, kreditda past stavka maqbul."""
-    lower_is_better = product_type in _LOWER_IS_BETTER_TYPES
+    bankdan bittadan. Omonatda yuqori, kredit va kredit kartada past stavka
+    maqbul (karta bo'limida faqat kredit kartalar solishtiriladi)."""
+    lower_is_better = product_type in _LOWER_IS_BETTER_TYPES or product_type == "card"
     rated = []
     for row in _market_rows(product_type, session):
         if row.segment != "individual" or _FOREIGN_CURRENCY_RE.search(" ".join(map(str, row.data.values()))):
+            continue
+        if product_type == "card" and not _CREDIT_CARD_RE.search(str(row.data.get("name") or "")):
             continue
         rate = extract_rate_percent(row.data)
         if rate is None or rate <= 0 or rate > 100 or (lower_is_better and rate < _MIN_CREDIT_RATE):
