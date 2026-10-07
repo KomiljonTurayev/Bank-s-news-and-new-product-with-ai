@@ -3,20 +3,22 @@ boshqarish va ularni bozordagi haqiqiy takliflar bilan solishtirib tahlil
 qilish."""
 
 from datetime import datetime, timezone
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from sqlalchemy import select
 
 from app.banks import PRODUCT_TYPES
 from app.db import SessionLocal
 from app.models import CustomProduct
-from app.product_analysis import Lang, analyze_product
+from app.product_analysis import Lang, analyze_product, top_market_offers
 from app.product_recommendation import RecommendationError, recommend_products
 from app.rate_limiter import RateLimiter
 from app.schemas import (
     CustomProductIn,
     CustomProductOut,
     CustomProductPatch,
+    MarketLeaderOut,
     ProductWithAnalysisOut,
     RecommendationIn,
     RecommendationOut,
@@ -211,6 +213,19 @@ def list_products():
         stmt = select(CustomProduct).order_by(CustomProduct.created_at.desc())
         rows = session.scalars(stmt).all()
         return [p.to_dict() for p in rows]
+
+
+@router.get(
+    "/market-leaders",
+    response_model=list[MarketLeaderOut],
+    summary="Bozordagi eng maqbul stavkali takliflar (AI'siz)",
+)
+def market_leaders(product_type: Literal["credit", "deposit", "card", "investment"], limit: int = Query(3, ge=1, le=10)):
+    """AI strategi paneli so'rovdan OLDIN ko'rsatadigan yetakchilar: so'mdagi,
+    jismoniy shaxslar uchun, har bankdan bittadan eng maqbul stavkali taklif.
+    Tashqi API'ga murojaat yo'q — bepul va bir zumda."""
+    with SessionLocal() as session:
+        return top_market_offers(product_type, session, limit)
 
 
 @router.get(

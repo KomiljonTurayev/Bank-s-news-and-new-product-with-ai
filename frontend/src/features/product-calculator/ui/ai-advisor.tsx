@@ -1,9 +1,10 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { notifications } from "@mantine/notifications";
+import { useQuery } from "@tanstack/react-query";
 
 import { useI18n } from "@/shared/lib/i18n/i18n-context";
 import { useOpenScreen } from "@/shared/lib/nav/use-open-screen";
-import { apiFetch, invalidateJsonCache } from "@/shared/api/base";
+import { apiFetch, fetchJSON, invalidateJsonCache } from "@/shared/api/base";
 
 import { productTypeLabel } from "../lib/product-labels";
 
@@ -38,7 +39,9 @@ type MarketLeader = {
   category: string | null;
   rate: number;
   url: string | null;
-  why: string;
+  term?: string | null;
+  amount?: string | null;
+  why?: string | null;
 };
 
 type AdvisorReply = {
@@ -48,6 +51,39 @@ type AdvisorReply = {
   market_leaders?: MarketLeader[];
   recommendations: Recommendation[];
 };
+
+function LeaderList({ leaders, title }: { leaders: MarketLeader[]; title: string }) {
+  const { t } = useI18n();
+  return (
+    <section className="ai-leaders" aria-label={title}>
+      <h4 className="ai-leaders-title">{title}</h4>
+      <ol>
+        {leaders.map(lead => (
+          <li className="ai-leader" key={`${lead.bank_code}-${lead.name}`}>
+            <div className="ai-leader-main">
+              <span className="ai-leader-bank">{lead.bank_name}</span>
+              <span className="ai-leader-name">
+                {lead.url ? (
+                  <a href={lead.url} target="_blank" rel="noopener noreferrer">
+                    {lead.name || t("ai_leaders_offer")}
+                  </a>
+                ) : (
+                  lead.name || t("ai_leaders_offer")
+                )}
+                {lead.category && <em> · {lead.category}</em>}
+              </span>
+              {(lead.term || lead.amount) && (
+                <span className="ai-leader-specs">{[lead.term, lead.amount].filter(Boolean).join(" · ")}</span>
+              )}
+              {lead.why && <p>{lead.why}</p>}
+            </div>
+            <b className="ai-leader-rate">{lead.rate}%</b>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 type Message =
   | { id: number; role: "user"; text: string; productType: ProductType }
@@ -253,6 +289,12 @@ export default function AiAdvisor() {
   // va'da berilmaydi. 502/503 = AI sozlanmagan yoki rad etdi.
   const [aiStatus, setAiStatus] = useState<"unknown" | "online" | "offline">("unknown");
   const nextId = useRef(1);
+  // So'rovdan oldin: tanlangan turdagi bozor yetakchilari (AI'siz, bazadan).
+  const { data: topOffers } = useQuery<MarketLeader[]>({
+    queryKey: ["market-leaders", productType],
+    queryFn: () => fetchJSON(`/api/products/market-leaders?product_type=${productType}`),
+    staleTime: 5 * 60_000,
+  });
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -355,6 +397,20 @@ export default function AiAdvisor() {
           </div>
         </div>
 
+        {!!topOffers?.length && (
+          <div className="ai-row ai-row-assistant">
+            <div className="ai-avatar">
+              <SparkIcon />
+            </div>
+            <div className="ai-answer">
+              <LeaderList
+                leaders={topOffers}
+                title={t("ai_top_now_title", { type: productTypeLabel(productType, t) })}
+              />
+            </div>
+          </div>
+        )}
+
         {messages.map(msg => {
           if (msg.role === "user") {
             return (
@@ -396,30 +452,7 @@ export default function AiAdvisor() {
                   </span>
                 </div>
                 {!!msg.reply.market_leaders?.length && (
-                  <section className="ai-leaders" aria-label={t("ai_leaders_title")}>
-                    <h4 className="ai-leaders-title">{t("ai_leaders_title")}</h4>
-                    <ol>
-                      {msg.reply.market_leaders.map(lead => (
-                        <li className="ai-leader" key={`${msg.id}-${lead.bank_code}-${lead.name}`}>
-                          <div className="ai-leader-main">
-                            <span className="ai-leader-bank">{lead.bank_name}</span>
-                            <span className="ai-leader-name">
-                              {lead.url ? (
-                                <a href={lead.url} target="_blank" rel="noopener noreferrer">
-                                  {lead.name || t("ai_leaders_offer")}
-                                </a>
-                              ) : (
-                                lead.name || t("ai_leaders_offer")
-                              )}
-                              {lead.category && <em> · {lead.category}</em>}
-                            </span>
-                            <p>{lead.why}</p>
-                          </div>
-                          <b className="ai-leader-rate">{lead.rate}%</b>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
+                  <LeaderList leaders={msg.reply.market_leaders} title={t("ai_leaders_title")} />
                 )}
                 <h4 className="ai-leaders-title">{t("ai_ideas_title")}</h4>
                 <div className="ai-recs">

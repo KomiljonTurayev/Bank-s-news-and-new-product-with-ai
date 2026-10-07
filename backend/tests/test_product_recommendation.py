@@ -202,3 +202,47 @@ def test_recommend_rejects_off_topic_goal(session_factory, monkeypatch):
 
     assert response.status_code == 422
     assert "bank mahsulotlari" in response.json()["detail"]
+
+
+def test_market_leaders_ranks_uzs_individual_offers_one_per_bank(session_factory):
+    with session_factory() as session:
+        now = datetime.now(timezone.utc)
+        for bank, name, rate, segment, extra in [
+            ("SQB", "Jamg'arma", "21%", "individual", {}),
+            ("SQB", "Ikkinchi", "20%", "individual", {}),  # bir bankdan faqat eng yaxshisi
+            ("NBU", "Hamma uchun", "18%", "individual", {"Muddati": "12 oy", "Summa": "100 000 so'mdan"}),
+            ("KDB", "Dollar", "30%", "individual", {"Valyuta": "USD"}),  # valyuta — chiqariladi
+            ("XB", "Biznes", "25%", "legal", {}),  # yuridik — chiqariladi
+        ]:
+            session.add(
+                BankRate(
+                    bank_code=bank,
+                    product_type="deposit",
+                    segment=segment,
+                    data={"name": name, "Foiz stavkasi": rate, "url": "https://x", **extra},
+                    fetched_at=now,
+                )
+            )
+        session.commit()
+
+    response = client.get("/api/products/market-leaders", params={"product_type": "deposit"})
+
+    assert response.status_code == 200
+    leaders = response.json()
+    assert [(lead["bank_code"], lead["rate"]) for lead in leaders] == [("SQB", 21.0), ("NBU", 18.0)]
+    assert leaders[1]["term"] == "12 oy" and leaders[1]["amount"] == "100 000 so'mdan"
+    assert leaders[0]["why"] is None
+
+
+def test_market_leaders_credit_prefers_lowest_realistic_rate(session_factory):
+    with session_factory() as session:
+        now = datetime.now(timezone.utc)
+        for bank, rate in [("SQB", "24%"), ("NBU", "19%"), ("XB", "0% dan")]:
+            session.add(
+                BankRate(bank_code=bank, product_type="credit", segment="individual", data={"name": "K", "Foiz": rate}, fetched_at=now)
+            )
+        session.commit()
+
+    leaders = client.get("/api/products/market-leaders", params={"product_type": "credit"}).json()
+
+    assert [lead["bank_code"] for lead in leaders] == ["NBU", "SQB"]

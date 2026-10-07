@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session
 
 from app.input_guard import INAPPROPRIATE_MESSAGE, OFF_TOPIC_MESSAGE, is_inappropriate
 from app.config import AI_EFFORT, AI_MODEL, ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID
-from app.product_analysis import _BANK_NAMES, _LOWER_IS_BETTER_TYPES, Lang, _market_rows, extract_rate_percent
+from app.product_analysis import (
+    _BANK_NAMES,
+    _LOWER_IS_BETTER_TYPES,
+    Lang,
+    _market_rows,
+    extract_rate_percent,
+    offer_details,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +159,7 @@ def _resolve_leaders(picks: list[MarketPick], rated: list) -> list[dict]:
                 "segment": row.segment,
                 "rate": rate,
                 "url": row.data.get("url"),
+                **offer_details(row.data),
                 "why": pick.why,
             }
         )

@@ -278,7 +278,9 @@ class MarketLeaderOut(BaseModel):
     segment: str
     rate: float
     url: str | None = None
-    why: str
+    term: str | None = None
+    amount: str | None = None
+    why: str | None = Field(default=None, description="AI izohi — faqat AI tanlagan yetakchilarda")
 
 
 class RecommendationOut(BaseModel):

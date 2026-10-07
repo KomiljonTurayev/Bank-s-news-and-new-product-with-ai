@@ -2803,6 +2803,12 @@ tr.active .mpl-ccy-name {
   font-weight: 400;
   color: var(--text-faint);
 }
+.ai-leader-specs {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 .ai-leader-main p {
   margin: 4px 0 0;
   font-size: 13px;

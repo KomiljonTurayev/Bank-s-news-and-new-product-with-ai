@@ -297,3 +297,62 @@ def analyze_product(
         "cautions": cautions,
         "market_sample": _market_sample(rows, lower_is_better),
     }
+
+
+# --- Bozor yetakchilari (AI'siz, so'rovdan oldin ko'rsatiladi) ---
+
+_FOREIGN_CURRENCY_RE = re.compile(r"\b(usd|eur|aqsh dollar|dollar|yevro|evro|euro)\b|\$|€", re.IGNORECASE)
+_TERM_KEY_RE = re.compile(r"muddat", re.IGNORECASE)
+_AMOUNT_KEY_RE = re.compile(r"summa|miqdor", re.IGNORECASE)
+# Kreditda bundan past stavka deyarli doim subsidiyali/aksiya ("0% dan")
+# yoki valyutadagi taklif — "eng arzon" deb ko'rsatish chalg'itadi.
+_MIN_CREDIT_RATE = 5.0
+_DETAIL_LIMIT = 60
+
+
+def _first_field(data: dict, key_re: re.Pattern) -> str | None:
+    for key, value in data.items():
+        if key_re.search(key) and isinstance(value, str) and value.strip():
+            return value.strip()[:_DETAIL_LIMIT]
+    return None
+
+
+def offer_details(data: dict) -> dict:
+    """Kartochkada stavka yonida ko'rsatiladigan muddat va summa matni."""
+    return {"term": _first_field(data, _TERM_KEY_RE), "amount": _first_field(data, _AMOUNT_KEY_RE)}
+
+
+def top_market_offers(product_type: str, session: Session, limit: int = 3) -> list[dict]:
+    """Jismoniy shaxslar uchun so'mdagi eng maqbul stavkali takliflar — har
+    bankdan bittadan. Omonat/kartada yuqori, kreditda past stavka maqbul."""
+    lower_is_better = product_type in _LOWER_IS_BETTER_TYPES
+    rated = []
+    for row in _market_rows(product_type, session):
+        if row.segment != "individual" or _FOREIGN_CURRENCY_RE.search(" ".join(map(str, row.data.values()))):
+            continue
+        rate = extract_rate_percent(row.data)
+        if rate is None or rate <= 0 or rate > 100 or (lower_is_better and rate < _MIN_CREDIT_RATE):
+            continue
+        rated.append((rate, row))
+    rated.sort(key=lambda item: item[0], reverse=not lower_is_better)
+
+    leaders, seen_banks = [], set()
+    for rate, row in rated:
+        if row.bank_code in seen_banks:
+            continue
+        seen_banks.add(row.bank_code)
+        leaders.append(
+            {
+                "bank_code": row.bank_code,
+                "bank_name": _BANK_NAMES.get(row.bank_code, row.bank_code),
+                "name": str(row.data.get("name") or ""),
+                "category": row.data.get("category"),
+                "segment": row.segment,
+                "rate": rate,
+                "url": row.data.get("url"),
+                **offer_details(row.data),
+            }
+        )
+        if len(leaders) == limit:
+            break
+    return leaders
