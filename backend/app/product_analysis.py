@@ -3,6 +3,7 @@ bank saytlaridan yig'ilgan) shu turdagi takliflar bilan solishtirib,
 qoidaga asoslangan (tashqi AI API'siz) tahlil matnini hosil qiladi."""
 
 import re
+from datetime import date
 from collections.abc import Sequence
 from typing import Literal
 
@@ -312,6 +313,21 @@ _MIN_CREDIT_RATE = 10.0
 # maqbul; bunday yozuvlar nomidan ajratiladi.
 _CREDIT_CARD_RE = re.compile(r"kredit|credit|кредит", re.IGNORECASE)
 _DETAIL_LIMIT = 60
+_DATE_RE = re.compile(r"\b(\d{2})\.(\d{2})\.(\d{4})\b")
+
+
+def _expired(data: dict, today: date) -> bool:
+    """Muddat maydonida aniq sana (dd.mm.yyyy) bo'lsa va u o'tib ketgan
+    bo'lsa — masalan so'ndirilgan obligatsiya — taklif endi mavjud emas."""
+    term = _first_field(data, _TERM_KEY_RE)
+    match = _DATE_RE.search(term or "")
+    if not match:
+        return False
+    day, month, year = map(int, match.groups())
+    try:
+        return date(year, month, day) < today
+    except ValueError:
+        return False
 
 
 def _first_field(data: dict, key_re: re.Pattern) -> str | None:
@@ -331,11 +347,14 @@ def top_market_offers(product_type: str, session: Session, limit: int = 3) -> li
     bankdan bittadan. Omonatda yuqori, kredit va kredit kartada past stavka
     maqbul (karta bo'limida faqat kredit kartalar solishtiriladi)."""
     lower_is_better = product_type in _LOWER_IS_BETTER_TYPES or product_type == "card"
+    today = date.today()
     rated = []
     for row in _market_rows(product_type, session):
         if row.segment != "individual" or _FOREIGN_CURRENCY_RE.search(" ".join(map(str, row.data.values()))):
             continue
         if product_type == "card" and not _CREDIT_CARD_RE.search(str(row.data.get("name") or "")):
+            continue
+        if _expired(row.data, today):
             continue
         rate = extract_rate_percent(row.data)
         if rate is None or rate <= 0 or rate > 100 or (lower_is_better and rate < _MIN_CREDIT_RATE):

@@ -260,3 +260,23 @@ def test_market_leaders_card_compares_credit_cards_lowest_first(session_factory)
     leaders = client.get("/api/products/market-leaders", params={"product_type": "card"}).json()
 
     assert [lead["bank_code"] for lead in leaders] == ["NBU", "SQB"]
+
+
+def test_market_leaders_skips_matured_bonds(session_factory):
+    with session_factory() as session:
+        now = datetime.now(timezone.utc)
+        for bank, rate, term in [("SQB", "25%", "03.03.2023"), ("NBU", "19%", "21.05.2099"), ("XB", "18%", "")]:
+            session.add(
+                BankRate(
+                    bank_code=bank,
+                    product_type="investment",
+                    segment="individual",
+                    data={"name": "Obligatsiya", "Foiz": rate, "Muddati": term},
+                    fetched_at=now,
+                )
+            )
+        session.commit()
+
+    leaders = client.get("/api/products/market-leaders", params={"product_type": "investment"}).json()
+
+    assert [lead["bank_code"] for lead in leaders] == ["NBU", "XB"]
